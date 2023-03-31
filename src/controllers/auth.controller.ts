@@ -5,7 +5,8 @@ import AppError from "../utils/appError";
 import { signTokens } from "../services/auth.service";
 import { signJwt, verifyJwt } from "../utils/jwt";
 import redisClient from "../utils/connectRedis";
-import { findUserByEmail, findUserByPk, registerUserService } from "../services/user.service";
+import { UpsertByEmailService, findUserByEmailService, findUserByPkService, registerUserService } from "../services/user.service";
+import { getGoogleOauthToken, getGoogleUser } from "../services/sessions.service";
 
 const cookiesOptions: CookieOptions = {
     httpOnly: true,
@@ -55,7 +56,7 @@ export const loginUserController = async (req: Request<{}, {}, LoginUserInput>, 
     try {
         const { email, password } = req.body;
 
-        const user = await findUserByEmail(email);
+        const user = await findUserByEmailService(email);
 
         if (!user || !(await user.comparePassword(password, user.password))) {
             next(new AppError(400, 'Invalid email or password'));
@@ -104,7 +105,7 @@ export const refreshTokenController = async (req: Request, res: Response, next: 
             return next(new AppError(403, message))
         }
 
-        const user = await findUserByPk(JSON.parse(session).id);
+        const user = await findUserByPkService(JSON.parse(session).id);
 
         if (!user) {
             return next(new AppError(403, message))
@@ -147,5 +148,51 @@ export const logoutController = async (req: Request, res: Response, next: NextFu
         })
     } catch (err: any) {
         next(err);
+    }
+}
+
+export const googleOAuthController = async (req: Request, res: Response, next: NextFunction) => {
+    const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN;
+
+    try {
+        const code = req.query.code as string;
+        const pathUrl = (req.query.state as string) || "/";
+
+        if (!code) {
+            return next(new AppError(401, `Authorization code not provided!`));
+        }
+
+        const { id_token, access_token } = await getGoogleOauthToken({ code });
+
+        const { name, verified_email, email, picture } = await getGoogleUser({
+            id_token,
+            access_token,
+        });
+
+        if (!verified_email) {
+            return next(new AppError(403, `Google account not verified`))
+        }
+
+        const user = await UpsertByEmailService({
+            email,
+            name,
+            picture
+        })
+
+        if (!user) return res.redirect(`${FRONTEND_ORIGIN}/oauth/error`)
+
+        const token = await signTokens(user)
+
+        res.cookie('access_token', token.access_token, accessTokenCookieOptions);
+        res.cookie('refresh_token', token.refresh_token, refreshTokenCookieOptions);
+
+        res.cookie('logged_in', true, {
+            ...accessTokenCookieOptions,
+            httpOnly: false,
+        });
+
+        return res.redirect(`${FRONTEND_ORIGIN}${pathUrl}`);
+    } catch (err) {
+        res.redirect(`${FRONTEND_ORIGIN}`)
     }
 }

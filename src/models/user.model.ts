@@ -10,9 +10,11 @@ export interface IUserModel extends Model<InferAttributes<IUserModel>, InferCrea
     email: string;
     password: string;
     photo?: string;
+    picture?: string;
     verified?: boolean;
     createdAt?: Date;
     updatedAt?: Date;
+    provider?: String;
     comparePassword: (candidatePassword: string, hashedPassword: string) => boolean
 }
 
@@ -48,6 +50,10 @@ const UserModel = sequelize.define<IUserModel>("users", {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: sequelize.literal('NOW()')
+    },
+    provider: {
+        type: DataTypes.STRING,
+        allowNull: true
     },
     updatedAt: {
         type: DataTypes.DATE,

@@ -1,11 +1,11 @@
 import config from "config"
 import redisClient from "../utils/connectRedis";
 import { signJwt } from "../utils/jwt";
+import { exclude } from "../utils/constant";
 
 export const signTokens = async (user: any) => {
     // 1. Create Session
-
-    delete user.get().password
+    exclude(user.get(), ['password'])
 
     redisClient.set(user.id, JSON.stringify(user), {
         EX: config.get<number>('redisCacheExpiresIn') * 60,

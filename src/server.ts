@@ -4,6 +4,10 @@ import router from "./routes/index"
 import cors from "cors";
 import { connectDB, sequelize } from "./utils/connectDB";
 import AppError from "./utils/appError";
+import config from 'config';
+import passport from 'passport';
+import cookieSession from 'cookie-session'
+
 require("dotenv").config();
 
 const app = express();
@@ -11,9 +15,20 @@ const app = express();
 app.use(express.json({ limit: "10kb" }));
 if (process.env.NODE_ENV === "development") app.use(morgan("dev"));
 
+app.use(cookieSession({
+  name: 'session',
+  keys: ["googleauthen"],
+  maxAge: config.get<number>('accessTokenExpiresIn') * 60 * 1000
+}))
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN as unknown as string;
 app.use(
   cors({
-    origin: ["http://localhost:3000"],
+    origin: [FRONTEND_ORIGIN],
+    methods: "GET, POST PUT, DELETE",
     credentials: true,
   })
 );
